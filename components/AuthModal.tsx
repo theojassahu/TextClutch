@@ -17,6 +17,10 @@ import {
   AlertCircle,
   Sparkles,
   ShieldCheck,
+  Eye,
+  EyeOff,
+  UserCheck,
+  UserPlus,
 } from "lucide-react";
 
 interface AuthModalProps {
@@ -26,13 +30,19 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
   const { isAuthModalOpen, setAuthModalOpen, setUser } = useClutchStore();
 
-  const [mode, setMode] = useState<"signin" | "signup">("signup");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isAuthModalOpen) return null;
+
+  const handleModeSwitch = (newMode: "signin" | "signup") => {
+    setMode(newMode);
+    setErrorMsg(null);
+  };
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -45,11 +55,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
     } catch (err: any) {
       console.error("Google Auth error:", err);
       if (err?.code === "auth/popup-closed-by-user") {
-        setErrorMsg("Sign-in was cancelled.");
+        setErrorMsg("Sign-in window was closed.");
       } else if (err?.code === "auth/popup-blocked") {
-        setErrorMsg("Sign-in popup was blocked by your browser. Please allow popups for this site.");
+        setErrorMsg("Popup was blocked by your browser. Please allow popups for this site.");
       } else if (err?.code === "auth/operation-not-allowed") {
-        setErrorMsg("Google sign-in is not enabled yet in Firebase Console -> Authentication -> Sign-in method.");
+        setErrorMsg("Google provider is not enabled yet in Firebase Console -> Authentication -> Sign-in method.");
       } else if (err?.message?.includes("apiKey") || err?.code === "auth/invalid-api-key") {
         setErrorMsg("Firebase API key not configured yet. Add your Firebase keys to .env.local.");
       } else {
@@ -75,13 +85,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
           ? signUpWithEmail(email.trim(), password)
           : signInWithEmail(email.trim(), password);
 
-      // Safety timeout in case of network freeze
+      // Safety timeout in case of network stall
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
           () =>
             reject(
               new Error(
-                "Request timed out. Please verify that Email/Password is enabled in your Firebase Console."
+                "Request timed out. Please check your internet connection or Firebase settings."
               )
             ),
           12000
@@ -96,16 +106,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
     } catch (err: any) {
       console.error("Email Auth error:", err);
       if (err?.code === "auth/operation-not-allowed") {
-        setErrorMsg("Email/Password provider is disabled. Enable it in Firebase Console -> Authentication -> Sign-in method.");
+        setErrorMsg("Email/Password login is not enabled yet in Firebase Console -> Authentication -> Sign-in method.");
+      } else if (err?.code === "auth/email-already-in-use") {
+        setErrorMsg("This email already has an account. Please switch to the 'Sign In' tab above to log in.");
+        setMode("signin");
       } else if (
         err?.code === "auth/user-not-found" ||
         err?.code === "auth/wrong-password" ||
         err?.code === "auth/invalid-credential"
       ) {
-        setErrorMsg("Invalid email or password. If you don't have an account, click 'Sign up free' below.");
-      } else if (err?.code === "auth/email-already-in-use") {
-        setErrorMsg("An account with this email already exists. Switching to Sign In mode...");
-        setMode("signin");
+        setErrorMsg(
+          "Invalid email or password. If you previously signed in with Google, please click 'Continue with Google' above."
+        );
       } else if (err?.code === "auth/weak-password") {
         setErrorMsg("Password should be at least 6 characters.");
       } else if (err?.code === "auth/invalid-email") {
@@ -152,7 +164,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
             </h3>
 
             <p className="text-xs text-neutral-400 max-w-xs mx-auto leading-relaxed">
-              You&apos;ve used your 1 free guest generation. Sign up in seconds to get unlimited AI comebacks, Hinglish banter, and photo/video OCR.
+              Sign in or create an account to get unlimited AI comebacks, Hinglish banter, and photo/video OCR.
             </p>
           </div>
 
@@ -193,11 +205,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
             <div className="border-t border-white/[0.08] w-full" />
           </div>
 
+          {/* Mode Switcher Tabs */}
+          <div className="flex p-1 rounded-xl bg-neutral-900/80 border border-white/[0.08]">
+            <button
+              type="button"
+              onClick={() => handleModeSwitch("signin")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                mode === "signin"
+                  ? "bg-violet-600 text-white shadow-md shadow-violet-600/30"
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>Sign In</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleModeSwitch("signup")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                mode === "signup"
+                  ? "bg-violet-600 text-white shadow-md shadow-violet-600/30"
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Create Account</span>
+            </button>
+          </div>
+
           {/* Error Message */}
           {errorMsg && (
             <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
+              <span className="leading-relaxed">{errorMsg}</span>
             </div>
           )}
 
@@ -213,7 +254,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
                   placeholder="you@example.com"
                   className="w-full rounded-xl bg-neutral-900/90 border border-white/10 pl-10 pr-3.5 py-2.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
@@ -227,14 +271,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
               <div className="relative">
                 <Lock className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   minLength={6}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
                   placeholder="At least 6 characters"
-                  className="w-full rounded-xl bg-neutral-900/90 border border-white/10 pl-10 pr-3.5 py-2.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  className="w-full rounded-xl bg-neutral-900/90 border border-white/10 pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-neutral-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 p-0.5"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
 
@@ -247,36 +305,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <span>{mode === "signup" ? "Create Free Account" : "Sign In"}</span>
+                  <span>
+                    {mode === "signup" ? "Create Free Account" : "Sign In to Account"}
+                  </span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Toggle Sign In / Sign Up */}
-          <div className="text-center pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                setMode(mode === "signup" ? "signin" : "signup");
-                setErrorMsg(null);
-              }}
-              className="text-xs text-neutral-400 hover:text-violet-300 transition-colors cursor-pointer"
-            >
-              {mode === "signup" ? (
-                <>
-                  Already have an account? <span className="font-semibold text-violet-400">Sign in</span>
-                </>
-              ) : (
-                <>
-                  Need an account? <span className="font-semibold text-violet-400">Sign up free</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="pt-2 text-center text-[11px] text-neutral-500 flex items-center justify-center gap-1.5">
+          <div className="pt-1 text-center text-[11px] text-neutral-500 flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             <span>Secure Firebase Authentication • Instant unlock</span>
           </div>
