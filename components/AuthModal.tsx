@@ -44,11 +44,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
       if (onSuccess) onSuccess();
     } catch (err: any) {
       console.error("Google Auth error:", err);
-      // Friendly message if popup closed or Firebase dev mock
       if (err?.code === "auth/popup-closed-by-user") {
         setErrorMsg("Sign-in was cancelled.");
+      } else if (err?.code === "auth/popup-blocked") {
+        setErrorMsg("Sign-in popup was blocked by your browser. Please allow popups for this site.");
+      } else if (err?.code === "auth/operation-not-allowed") {
+        setErrorMsg("Google sign-in is not enabled yet in Firebase Console -> Authentication -> Sign-in method.");
       } else if (err?.message?.includes("apiKey") || err?.code === "auth/invalid-api-key") {
-        setErrorMsg("Firebase API key not configured yet. Add your Firebase keys to .env.local to enable live authentication.");
+        setErrorMsg("Firebase API key not configured yet. Add your Firebase keys to .env.local.");
       } else {
         setErrorMsg(err?.message || "Failed to sign in with Google.");
       }
@@ -67,27 +70,48 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const user =
+      const authPromise =
         mode === "signup"
-          ? await signUpWithEmail(email.trim(), password)
-          : await signInWithEmail(email.trim(), password);
+          ? signUpWithEmail(email.trim(), password)
+          : signInWithEmail(email.trim(), password);
+
+      // Safety timeout in case of network freeze
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                "Request timed out. Please verify that Email/Password is enabled in your Firebase Console."
+              )
+            ),
+          12000
+        )
+      );
+
+      const user = await Promise.race([authPromise, timeoutPromise]);
 
       setUser(user);
       setAuthModalOpen(false);
       if (onSuccess) onSuccess();
     } catch (err: any) {
       console.error("Email Auth error:", err);
-      if (err?.code === "auth/user-not-found" || err?.code === "auth/wrong-password" || err?.code === "auth/invalid-credential") {
-        setErrorMsg("Invalid email or password.");
+      if (err?.code === "auth/operation-not-allowed") {
+        setErrorMsg("Email/Password provider is disabled. Enable it in Firebase Console -> Authentication -> Sign-in method.");
+      } else if (
+        err?.code === "auth/user-not-found" ||
+        err?.code === "auth/wrong-password" ||
+        err?.code === "auth/invalid-credential"
+      ) {
+        setErrorMsg("Invalid email or password. If you don't have an account, click 'Sign up free' below.");
       } else if (err?.code === "auth/email-already-in-use") {
-        setErrorMsg("Email already in use. Please sign in instead.");
+        setErrorMsg("An account with this email already exists. Switching to Sign In mode...");
         setMode("signin");
       } else if (err?.code === "auth/weak-password") {
         setErrorMsg("Password should be at least 6 characters.");
       } else if (err?.code === "auth/invalid-email") {
         setErrorMsg("Please enter a valid email address.");
       } else if (err?.message?.includes("apiKey") || err?.code === "auth/invalid-api-key") {
-        setErrorMsg("Firebase API key not configured yet. Add your Firebase keys to .env.local to enable live authentication.");
+        setErrorMsg("Firebase API key not configured yet. Add your Firebase keys to .env.local.");
       } else {
         setErrorMsg(err?.message || "Authentication failed. Please try again.");
       }
