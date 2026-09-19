@@ -215,15 +215,8 @@ async function callGeminiLive(
   extraContext: string,
   images: { mimeType: string; base64: string }[]
 ): Promise<ApiResponsePayload | null> {
-  const isBearer = token.startsWith("AQ.");
-  const url = isBearer
-    ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
-    : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${token}`;
-
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(token)}`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (isBearer) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
 
   const personaDirective = getPersonaDirective(persona);
   const languageDirective = getLanguageDirective(language);
